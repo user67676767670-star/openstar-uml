@@ -1,7 +1,7 @@
 {
   "name": "openstar-uml",
   "productName": "OpenStar UML",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "A free and open-source UML modeling tool — Model. Design. Document.",
   "main": "main/main.js",
   "license": "MIT",
