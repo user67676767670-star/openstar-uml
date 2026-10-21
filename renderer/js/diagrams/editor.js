@@ -60,11 +60,26 @@
     this._drag = null;            // active gesture state
     this._spaceDown = false;
     this._editInput = null;
+    this._rafId = 0;
+    var self = this;
+    /* rAF-coalesced rendering: during drags/zoom every mousemove used to run a
+     * full canvas repaint synchronously, which froze large diagrams. render()
+     * now schedules at most one repaint per animation frame. */
+    this._renderNow = function () {
+      if (typeof requestAnimationFrame === 'function') {
+        if (self._rafId) return; // already scheduled for this frame
+        self._rafId = requestAnimationFrame(function () {
+          self._rafId = 0;
+          self.renderImmediate();
+        });
+      } else {
+        self.renderImmediate();
+      }
+    };
 
     this._bindEvents();
     this._resizeObserver = null;
     if (typeof ResizeObserver !== 'undefined') {
-      var self = this;
       this._resizeObserver = new ResizeObserver(function () { self.resize(); });
       this._resizeObserver.observe(container);
     }
@@ -173,7 +188,12 @@
 
   /* ============================ rendering ============================ */
 
-  Editor.prototype.render = function () {
+  /** Coalesced entry point: schedules at most one repaint per animation
+   * frame. All interactive code paths (mousemove, wheel, zoom) call this. */
+  Editor.prototype.render = function () { this._renderNow(); };
+
+  /** Full synchronous repaint (the actual drawing code). */
+  Editor.prototype.renderImmediate = function () {
     var gfx = this.gfx, ctx = this.ctx2d;
     var w = this.container.clientWidth, h = this.container.clientHeight;
     ctx.setTransform(this.dpr || 1, 0, 0, this.dpr || 1, 0, 0);
@@ -524,9 +544,20 @@
       this.render();
     } else if (d.kind === 'marquee') {
       d.current = wp;
-      var r = util.normalizeRect(d.start, wp);
+      // recompute the marquee selection only when the rubber band actually
+      // moved in world space AND at most once per animation frame — before,
+      // every mousemove rerouted and re-bounds-checked the whole diagram
+      var nr = util.normalizeRect(d.start, wp);
+      var lm = d.lastSelRect;
+      if (lm && lm.x === nr.x && lm.y === nr.y && lm.width === nr.width && lm.height === nr.height) {
+        return;
+      }
+      d.lastSelRect = nr;
       var sel = d.additive ? d.baseSel.slice() : [];
       (this.diagram.ownedViews || []).forEach(function (v) {
+        // hidden views must not be grabbable by the rubber band (they would
+        // get deleted/edited invisibly)
+        if (v.visible === false) return;
         // Edge views have no left/top/width/height — viewRect() would be an
         // empty rect at the origin, so marquee never selected edges. Use the
         // bounding box of the routed points instead.
@@ -540,7 +571,7 @@
         } else {
           vr = views.viewRect(v);
         }
-        if (util.intersects(r, vr) && sel.indexOf(v) < 0) sel.push(v);
+        if (util.intersects(nr, vr) && sel.indexOf(v) < 0) sel.push(v);
       });
       this.selection = sel;
       this.syncSelectionIds();

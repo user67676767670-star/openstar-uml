@@ -56,6 +56,7 @@
     this.wireBridge();
     this.applySettings();
     this.buildStatusControls();
+    if (this.isElectron) this.startAutosave();
 
     var self = this;
     this.project.newProject();
@@ -76,10 +77,20 @@
       if (this.bridge.onCloseRequested) {
         this.bridge.onCloseRequested(function () {
           self.maybeSaveChanges().then(function (ok) {
-            if (ok) self.bridge.closeWindow(true);
+            // Clean shutdown: mark the autosave stale so the next launch does
+            // not falsely offer to "recover" work that was intentionally kept.
+            if (ok) { self.clearStaleRecovery(); self.bridge.closeWindow(true); }
           });
         });
       }
+
+      // Offer the last autosaved copy if the previous run did not shut down
+      // cleanly (recovery.json still present). Runs after boot; never blocks.
+      setTimeout(function () {
+        self.checkRecovery().then(function (restored) {
+          if (!restored && !self.project.dirty) self.clearStaleRecovery();
+        }).catch(function () { });
+      }, 300);
     } else {
       // Browser mode: beforeunload is the only available guard
       global.addEventListener('beforeunload', function (ev) {
@@ -102,6 +113,10 @@
   };
 
   App.prototype.applySettings = function () {
+    // Guard: settings may be re-applied asynchronously (e.g. a Preferences
+    // dialog resolved after the page is already unloading), when document.body
+    // no longer exists. Never throw from here.
+    if (!document || !document.body) return;
     document.body.dataset.theme = this.settings.theme;
     document.body.classList.toggle('hide-explorer', !this.settings.showExplorer);
     document.body.classList.toggle('hide-props', !this.settings.showProperties);
@@ -552,11 +567,87 @@
     return parts.join('::');
   };
 
+  /* ============================ crash recovery (autosave) ============================ */
+
+  var AUTOSAVE_MS = 30000;
+
+  App.prototype.startAutosave = function () {
+    /* Periodically push a compact snapshot through the main process so an
+     * unsaved project can be offered back after a crash. Only runs when the
+     * project is dirty; failures are silent (recovery must never break UX). */
+    var self = this;
+    if (!this.bridge || !this.bridge.saveRecovery) return;
+    this._autosaveTimer = setInterval(function () {
+      if (!self.project.dirty || !self.project.root) return;
+      try {
+        var state = OS.Mdj.stateJSON(self.project);
+        Promise.resolve(self.bridge.saveRecovery({
+          fileName: self.project.fileName || null, ts: Date.now(), state: state
+        })).catch(function () { });
+      } catch (e) { /* ignore */ }
+    }, AUTOSAVE_MS);
+  };
+
+  /**
+   * Mark the current autosave stale on clean shutdown. Without this, every
+   * normal quit would leave recovery.json behind and falsely offer to
+   * "recover" work on the next launch. Best-effort: no await.
+   */
+  App.prototype.clearStaleRecovery = function () {
+    if (this.isElectron && this.bridge && this.bridge.clearRecovery) {
+      try { Promise.resolve(this.bridge.clearRecovery()).catch(function () { }); } catch (e) { }
+    }
+  };
+
+  App.prototype.checkRecovery = function () {
+    var self = this;
+    if (!this.bridge || !this.bridge.loadRecovery) return Promise.resolve(false);
+    return Promise.resolve(this.bridge.loadRecovery()).then(function (rec) {
+      if (!rec || typeof rec.state !== 'string') return false;
+      // An autosave that was never marked dirty-clean may still exist; always
+      // ask once, then clear it either way so we never nag twice.
+      return dialogs.modal({
+        title: 'Recover Unsaved Work',
+        content: '<div class="modal-message">OpenStar UML did not shut down cleanly last time.<br/><br/>' +
+          'Restore the autosaved copy of “' + util.xmlEscape(rec.fileName || 'Untitled') + '”?</div>',
+        buttons: [
+          { label: "Don't Restore", value: 'discard' },
+          { label: 'Restore', value: 'restore', primary: true }
+        ],
+        escapeValue: 'discard'
+      }).then(function (v) {
+        return Promise.resolve(self.bridge.clearRecovery()).then(function () {
+          if (v !== 'restore') return false;
+          try {
+            OS.Mdj.loadState(self.project, rec.state);
+            self.explorer.expanded.clear();
+            var d = self.project.defaultDiagram();
+            if (d) self.openDiagram(d);
+            self.refreshAll();
+            self.showMessage('Recovered unsaved copy.', 2500);
+            return true;
+          } catch (e) {
+            console.error(e);
+            dialogs.alert('Recovery Failed', 'The autosave file could not be restored.');
+            return false;
+          }
+        });
+      });
+    }).catch(function () { return false; });
+  };
+
   /* ============================ file operations ============================ */
 
   App.prototype.maybeSaveChanges = function () {
+    /* Serialize the prompt: two rapid Ctrl+O / close requests used to open two
+     * stacked "Unsaved Changes" dialogs; answering one could then discard or
+     * overwrite the other flow's file and lose data. While a prompt is in
+     * flight, concurrent callers piggyback on the same promise instead of
+     * opening another dialog. */
+    if (this._savePrompt) return this._savePrompt;
     if (!this.project.dirty) return Promise.resolve(true);
-    return dialogs.modal({
+    var self = this;
+    var p = dialogs.modal({
       title: 'Unsaved Changes',
       content: '<div class="modal-message">Save changes to “' + util.xmlEscape(this.project.fileName || this.project.root.name || 'Untitled') + '” before continuing?</div>',
       buttons: [
@@ -567,9 +658,12 @@
       escapeValue: 'cancel'
     }).then(function (v) {
       if (v === 'discard') return true;
-      if (v === 'save') return this.doSave().then(function (ok) { return ok; }.bind(this));
+      if (v === 'save') return self.doSave().then(function (ok) { return ok; });
       return false;
-    }.bind(this));
+    }).then(function (r) { self._savePrompt = null; return r; },
+      function (e) { self._savePrompt = null; throw e; });
+    this._savePrompt = p;
+    return p;
   };
 
   App.prototype.newProject = function () {
@@ -647,6 +741,7 @@
       if (ok) {
         self.project.setDirty(false);
         self.updateTitle();
+        self.clearStaleRecovery(); // file is safe on disk now — no recovery nag
         self.showMessage('Saved.', 1500);
       }
       return ok;
@@ -666,6 +761,7 @@
           self.addRecent(path, self.project.fileName);
           self.project.setDirty(false);
           self.updateTitle();
+          self.clearStaleRecovery(); // saved to a new path — recovery no longer needed
           self.showMessage('Saved.', 1500);
         }
         return ok;
@@ -833,6 +929,7 @@
 
   App.prototype.runCommand = function (cmd) {
     if (!cmd) return;
+    var self = this; // used by async command flows (e.g. 'exit')
     var ed = this.editor;
 
     // parametrized commands
@@ -869,7 +966,14 @@
         this.exportText((this.project.fileName || 'model').replace(/\.(mdj|json)$/i, '') + '.md', OS.Markdown.generate(this.project));
         break;
       case 'print': this.printDiagram(); break;
-      case 'exit': if (this.bridge.closeWindow) this.bridge.closeWindow(); break;
+      case 'exit':
+        // Route exit through the same unsaved-changes guard as window close.
+        // Previously it closed immediately: in Electron this bypassed the
+        // save prompt entirely (data loss). closeWindow() without `force`
+        // goes through the main-process 'close' interception, which asks the
+        // renderer to confirm — exactly like clicking the ✕ button.
+        if (this.bridge.closeWindow) this.bridge.closeWindow();
+        break;
 
       /* edit */
       case 'undo':
@@ -968,6 +1072,11 @@
   App.prototype.showPreferences = function () {
     var self = this;
     var s = this.settings;
+    /* Capture-on-cancel: the controls apply live for immediate feedback, but
+     * everything is persisted to localStorage only on OK. If the dialog is
+     * dismissed (Cancel / ✕ / Esc / backdrop) we restore the in-memory
+     * settings snapshot and re-apply it, so nothing leaks out of the dialog. */
+    var snapshot = Object.assign({}, s);
     var body = dialogs.el('div', 'prefs-body');
     body.innerHTML =
       '<div class="pref-row"><label>Theme</label><select id="pref-theme">' +
@@ -983,10 +1092,43 @@
       '</span></div>';
     dialogs.modal({
       title: 'Preferences', content: body,
-      buttons: [{ label: 'Cancel', value: false }, { label: 'OK', value: true, primary: true }]
+      buttons: [{ label: 'Cancel', value: false }, { label: 'OK', value: true, primary: true }],
+      escapeValue: false
     }).then(function (ok) {
-      if (!ok) { self.applySettings(); return; }
-      // values were read before close? modal removes DOM — capture via live refs
+      if (!ok) {
+        // dismissed without OK → roll back live-applied changes. Re-read the
+        // controls first: if a save/load cycle replaced this.settings between
+        // opening and closing the dialog, `s` is a detached snapshot of the
+        // old object and writing to it would silently do nothing.
+        var cur = self.settings;
+        Object.keys(snapshot).forEach(function (k) { cur[k] = snapshot[k]; });
+        self.applySettings();
+        return;
+      }
+      // OK → commit exactly what the controls show right now (they were only
+      // ever mutated by the user via `apply`, never programmatically), then
+      // persist. Reading from stale DOM after a torn-down document is guarded.
+      try {
+        if (document.body.contains(body)) {
+          var cTheme = body.querySelector('#pref-theme');
+          var cGrid = body.querySelector('#pref-grid');
+          var cShowGrid = body.querySelector('#pref-showgrid');
+          var cSnap = body.querySelector('#pref-snap');
+          var cExp = body.querySelector('#pref-explorer');
+          var cProps = body.querySelector('#pref-props');
+          var cTb = body.querySelector('#pref-toolbox');
+          var cur2 = self.settings;
+          if (cTheme) cur2.theme = cTheme.value;
+          if (cGrid) cur2.gridSize = parseInt(cGrid.value, 10) || 8;
+          if (cShowGrid) cur2.showGrid = cShowGrid.checked;
+          if (cSnap) cur2.snap = cSnap.checked;
+          if (cExp) cur2.showExplorer = cExp.checked;
+          if (cProps) cur2.showProperties = cProps.checked;
+          if (cTb) cur2.showToolbox = cTb.checked;
+        }
+      } catch (e) { /* torn-down document */ }
+      self.saveSettings(); // persist only on OK
+      self.applySettings();
     });
     // capture elements and wire live-apply (simpler + no focus races)
     var themeSel = body.querySelector('#pref-theme');
@@ -1011,7 +1153,7 @@
       s.showExplorer = expCb.checked;
       s.showProperties = propsCb.checked;
       s.showToolbox = tbCb.checked;
-      self.saveSettings();
+      // Live preview only: apply in memory, persist to localStorage on OK.
       self.applySettings();
     }
     [themeSel, gridSel].forEach(function (x) { x.addEventListener('change', apply); });

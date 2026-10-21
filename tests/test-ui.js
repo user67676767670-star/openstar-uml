@@ -66,12 +66,13 @@ module.exports = new Promise((resolve) => {
     const finish = () => { if (!done) { done = true; resolve(); } };
     window.addEventListener('load', () => {
       setTimeout(() => {
-        try { runTests(window); }
-        catch (e) {
-          t.suite('ui smoke (jsdom)');
-          t.ok(false, 'UI smoke crashed: ' + (e && e.stack || e));
-        }
-        finish();
+        Promise.resolve()
+          .then(() => runTests(window))
+          .catch((e) => {
+            t.suite('ui smoke (jsdom)');
+            t.ok(false, 'UI smoke crashed: ' + (e && e.stack || e));
+          })
+          .then(finish);
       }, 50);
     });
     setTimeout(finish, 20000);
@@ -300,19 +301,49 @@ function runTests(window) {
   app.runCommand('undo');
 
   /* ---------- dialogs ---------- */
+  // Modal dismissal resolves a Promise, so its handlers run in a microtask.
+  // The remaining flow is therefore wrapped in an async IIFE and awaited at
+  // the bottom of runTests().
+  return (async () => {
   app.runCommand('about');
   t.ok(doc.querySelector('.modal-overlay'), 'about dialog opened');
   doc.querySelector('.modal-foot .btn.primary').dispatchEvent(mouse('click', 0, 0));
+  await null; // let the modal's resolve-handler flush
   app.runCommand('shortcuts');
   t.ok(doc.querySelector('.shortcuts-table'), 'shortcuts dialog rendered');
   doc.querySelector('.modal-foot .btn.primary').dispatchEvent(mouse('click', 0, 0));
+  await null;
   app.runCommand('preferences');
   const snapCb = doc.querySelector('#pref-snap');
   t.ok(snapCb, 'preferences dialog rendered');
   snapCb.checked = true;
   snapCb.dispatchEvent(new window.Event('change', { bubbles: true }));
   t.ok(app.settings.snap === true && app.editor.snapToGrid === true, 'preference applied live');
-  doc.querySelector('.modal-foot .btn.primary').dispatchEvent(mouse('click', 0, 0));
+  /* capture-on-cancel: dismissing with Cancel must roll the live change back */
+  const cancelBtn = Array.from(doc.querySelectorAll('.modal-foot .btn'))
+    .find((b) => b.textContent.trim() === 'Cancel');
+  t.ok(cancelBtn, 'preferences has a Cancel button');
+  if (cancelBtn) {
+    cancelBtn.dispatchEvent(mouse('click', 0, 0));
+    await null; // rollback happens in the modal promise's .then handler
+    t.eq(app.settings.snap, false, 'Cancel reverts live-applied preference');
+    t.eq(app.editor.snapToGrid, false, 'reverted preference is re-applied to editor');
+  }
+  /* OK commits the live change instead of rolling it back */
+  app.runCommand('preferences');
+  const snapCb2 = doc.querySelector('#pref-snap');
+  snapCb2.checked = true;
+  snapCb2.dispatchEvent(new window.Event('change', { bubbles: true }));
+  const okBtn = Array.from(doc.querySelectorAll('.modal-foot .btn'))
+    .find((b) => b.textContent.trim() === 'OK');
+  t.ok(okBtn, 'preferences has an OK button');
+  if (okBtn) {
+    okBtn.dispatchEvent(mouse('click', 0, 0));
+    await null;
+    t.eq(app.settings.snap, true, 'OK keeps the changed preference');
+    app.settings.snap = false;
+    app.applySettings(); // restore default for later assertions
+  }
 
   /* ---------- menubar (browser fallback) ---------- */
   const fileBtn = Array.from(doc.querySelectorAll('.menubar-item')).find((b) => b.textContent === 'File');
@@ -357,4 +388,5 @@ function runTests(window) {
   /* ---------- close flow (browser mode) — LAST: jsdom window.close() tears down the document ---------- */
   t.ok(typeof app.bridge.closeWindow === 'function', 'bridge exposes closeWindow');
   t.doesNotThrow(() => app.runCommand('exit'), 'exit command is safe in browser mode');
+  })();
 }

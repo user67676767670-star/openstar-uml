@@ -25,6 +25,11 @@
 
   /* ============================ Project ============================ */
 
+  /* Maximum undo/redo entries kept in memory. Each entry stores two full
+   * state snapshots, so an unbounded stack on a large project is a memory
+   * DoS. Oldest entries are dropped first (FIFO). */
+  var UNDO_LIMIT = 100;
+
   function Project() {
     Emitter.call(this);
     this.byId = new Map();      // _id -> element (models, diagrams, views)
@@ -32,6 +37,7 @@
     this.filePath = null;
     this.fileName = null;
     this.dirty = false;
+    this.UNDO_LIMIT = UNDO_LIMIT;
     this._undo = [];
     this._redo = [];
     this._transactDepth = 0;
@@ -133,6 +139,10 @@
    */
   Project.prototype.transact = function (label, fn) {
     if (this._transactDepth === 0) {
+      // Snapshot before-state only when the undo stack can actually hold it:
+      // on huge projects stateJSON() is expensive and an entry that gets
+      // dropped again immediately is pure waste.
+      if (this._undo.length >= this.UNDO_LIMIT) this._undo.shift();
       this._transactBefore = OS.Mdj.stateJSON(this);
       this._transactLabel = label;
     }
@@ -156,14 +166,23 @@
       var before = this._transactBefore;
       this._transactBefore = null;
       if (before !== after) {
-        this._undo.push({ label: this._transactLabel || label, before: before, after: after });
-        if (this._undo.length > 100) this._undo.shift();
+        this._pushUndoEntry({ label: this._transactLabel || label, before: before, after: after });
         this._redo.length = 0;
         this.setDirty(true);
         this.emit('change', { label: label, structural: true });
       }
     }
     return result;
+  };
+
+  /**
+   * Append an undo entry with history capping in one place. The old code
+   * pushed first and shifted afterwards, which made a freshly captured
+   * snapshot disposable work when the stack was already full.
+   */
+  Project.prototype._pushUndoEntry = function (entry) {
+    while (this._undo.length >= this.UNDO_LIMIT) this._undo.shift();
+    this._undo.push(entry);
   };
 
   Project.prototype.canUndo = function () { return this._undo.length > 0; };
@@ -179,8 +198,7 @@
   Project.prototype._pushStateUndo = function (label, beforeJSON) {
     var after = OS.Mdj.stateJSON(this);
     if (beforeJSON === after) return false;
-    this._undo.push({ label: label, before: beforeJSON, after: after });
-    if (this._undo.length > 100) this._undo.shift();
+    this._pushUndoEntry({ label: label, before: beforeJSON, after: after });
     this._redo.length = 0;
     this.setDirty(true);
     this.emit('change', { label: label, structural: true });
@@ -191,6 +209,9 @@
     var entry = this._undo.pop();
     if (!entry) return false;
     OS.Mdj.loadState(this, entry.before);
+    // cap redo symmetrically: a redo entry pushed onto an already-full stack
+    // would be immediately unreachable via undo() and leak memory.
+    while (this._redo.length >= this.UNDO_LIMIT) this._redo.shift();
     this._redo.push(entry);
     this.setDirty(true);
     this.emit('restored', { label: entry.label });

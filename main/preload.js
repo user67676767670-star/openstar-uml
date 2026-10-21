@@ -55,8 +55,11 @@ contextBridge.exposeInMainWorld('OpenStar', {
 
   printDiagram: (dataUrl) => ipcRenderer.invoke('print:image', dataUrl),
   closeWindow: (force) => ipcRenderer.send('window:close', !!force),
-  onCloseRequested: (cb) => {
-    ipcRenderer.removeAllListeners('close-requested');
-    ipcRenderer.on('close-requested', () => cb());
-  }
+  // use the same additive registry as other subscriptions: removeAllListeners
+  // here wiped any previously registered close handlers
+  onCloseRequested: (cb) => subscribe('close-requested', cb),
+
+  saveRecovery: (state) => ipcRenderer.invoke('recovery:save', state),
+  loadRecovery: () => ipcRenderer.invoke('recovery:load'),
+  clearRecovery: () => ipcRenderer.invoke('recovery:clear')
 });
