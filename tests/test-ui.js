@@ -353,4 +353,8 @@ function runTests(window) {
   /* ---------- title & status ---------- */
   t.ok(doc.title.includes('OpenStar UML'), 'window title branded');
   t.ok(doc.getElementById('status-right').querySelectorAll('.status-btn').length >= 4, 'status bar zoom controls');
+
+  /* ---------- close flow (browser mode) — LAST: jsdom window.close() tears down the document ---------- */
+  t.ok(typeof app.bridge.closeWindow === 'function', 'bridge exposes closeWindow');
+  t.doesNotThrow(() => app.runCommand('exit'), 'exit command is safe in browser mode');
 }

@@ -70,9 +70,22 @@
     if (this.isElectron && this.bridge.onOpenFile) {
       this.bridge.onOpenFile(function (p) { self.openPath(p); });
     }
-    global.addEventListener('beforeunload', function (ev) {
-      if (self.project.dirty) { ev.preventDefault(); ev.returnValue = ''; }
-    });
+    if (this.isElectron) {
+      // Native close flow: main process intercepts the close event and asks us
+      // to confirm; we show a proper Save / Don't Save / Cancel dialog.
+      if (this.bridge.onCloseRequested) {
+        this.bridge.onCloseRequested(function () {
+          self.maybeSaveChanges().then(function (ok) {
+            if (ok) self.bridge.closeWindow(true);
+          });
+        });
+      }
+    } else {
+      // Browser mode: beforeunload is the only available guard
+      global.addEventListener('beforeunload', function (ev) {
+        if (self.project.dirty) { ev.preventDefault(); ev.returnValue = ''; }
+      });
+    }
   }
 
   /* ============================ settings ============================ */
