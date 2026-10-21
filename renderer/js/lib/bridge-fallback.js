@@ -9,6 +9,7 @@
   if (global.OpenStar && global.OpenStar.isElectron) return; // preload wins
 
   function download(name, blobOrUrl, isUrl) {
+    if (typeof document === 'undefined' || !document || !document.body) return; // page torn down mid-flight
     var a = document.createElement('a');
     if (isUrl) a.href = blobOrUrl;
     else a.href = URL.createObjectURL(blobOrUrl);
@@ -90,7 +91,14 @@
         w.document.close();
       }
       return Promise.resolve(true);
-    }
+    },
+
+    closeWindow: function () {
+      try { global.close(); } catch (e) { /* tabs not opened by script can't self-close */ }
+      return Promise.resolve(true);
+    },
+
+    onCloseRequested: function () { return Promise.resolve(false); }
   };
 
   global.OpenStar = bridge;

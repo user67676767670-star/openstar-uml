@@ -87,7 +87,25 @@ function createWindow() {
     mainWindow.focus();
   });
 
-  mainWindow.on('closed', () => { mainWindow = null; });
+  let forceClose = false;
+
+  mainWindow.on('close', (e) => {
+    // Ask the renderer to confirm (it shows Save / Don't Save / Cancel when dirty),
+    // because Electron silently swallows beforeunload dialogs.
+    if (forceClose) return;
+    e.preventDefault();
+    if (mainWindow.webContents && !mainWindow.webContents.isDestroyed()) {
+      mainWindow.webContents.send('close-requested');
+    } else {
+      forceClose = true;
+      mainWindow.close();
+    }
+  });
+
+  // Safety net: never let a stray beforeunload handler block closing
+  mainWindow.webContents.on('will-prevent-unload', (e) => { e.preventDefault(); });
+
+  mainWindow.on('closed', () => { mainWindow = null; forceClose = false; });
 
   // external links open in browser
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
@@ -265,7 +283,8 @@ ipcMain.on('menu:state', (_e, states) => {
   rebuildMenu();
 });
 
-ipcMain.on('window:close', () => {
+ipcMain.on('window:close', (_e, force) => {
+  if (force) forceClose = true;
   if (mainWindow) mainWindow.close();
 });
 

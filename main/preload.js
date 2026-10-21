@@ -54,5 +54,9 @@ contextBridge.exposeInMainWorld('OpenStar', {
   setMenuState: (states) => ipcRenderer.send('menu:state', states),
 
   printDiagram: (dataUrl) => ipcRenderer.invoke('print:image', dataUrl),
-  closeWindow: () => ipcRenderer.send('window:close')
+  closeWindow: (force) => ipcRenderer.send('window:close', !!force),
+  onCloseRequested: (cb) => {
+    ipcRenderer.removeAllListeners('close-requested');
+    ipcRenderer.on('close-requested', () => cb());
+  }
 });
