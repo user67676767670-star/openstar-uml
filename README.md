@@ -8,6 +8,10 @@ homage to the classic StarUML experience: the same dark three-panel workspace
 per-diagram toolboxes, and a full UML diagram suite — with zero paywalls, zero nag
 screens, and zero telemetry.
 
+> **This program was made fully by Qwen.** Every line of code, the test suite, the
+> documentation and the artwork in this repository were written by Qwen, an AI
+> assistant, from an empty directory.
+
 > Not affiliated with, endorsed by, or derived from StarUML / MKLab. This is an
 > independent clean-room implementation. "StarUML" is a trademark of its owner.
 > `.mdj` compatibility is achieved through the publicly observable file format.

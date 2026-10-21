@@ -1,0 +1,21 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      # --ignore-scripts: the test suite is pure Node + jsdom and does not
+      # need the Electron/builder binaries (saves minutes of download)
+      - run: npm ci --ignore-scripts
+      - run: npm test
+      - name: Verify sample round-trip
+        run: node scripts/make-sample.js

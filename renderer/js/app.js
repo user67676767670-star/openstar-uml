@@ -995,7 +995,7 @@
       '<div class="about-logo">' + OS.icons.svg('project', 56) + '</div>' +
       '<h2>OpenStar UML</h2>' +
       '<p class="about-ver">Version <span id="about-ver">1.0.0</span></p>' +
-      '<p>A free and open-source UML modeling tool.<br/>Model · Design · Document.</p>' +
+      '<p>A free and open-source UML modeling tool — made fully by Qwen.<br/>Model · Design · Document.</p>' +
       '<p class="about-lic">Released under the MIT License.</p>' +
       '<p class="about-tech">Supports StarUML-compatible <code>.mdj</code> projects, XMI 2.1, PNG/SVG export and PlantUML generation.</p>';
     dialogs.modal({ title: 'About', content: body, buttons: [{ label: 'OK', value: true, primary: true }] });

@@ -37,7 +37,7 @@
   "build": {
     "appId": "org.openstar.uml",
     "productName": "OpenStar UML",
-    "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
+    "artifactName": "${name}-${version}-${os}-${arch}.${ext}",
     "files": [
       "main/**/*",
       "renderer/**/*",

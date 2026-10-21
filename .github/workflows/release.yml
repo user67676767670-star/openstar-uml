@@ -1,0 +1,78 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm ci --ignore-scripts
+      - run: npm test
+
+  build:
+    needs: test
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            args: --linux AppImage deb
+          - os: windows-latest
+            args: --win nsis zip
+          - os: macos-latest
+            args: --mac dmg zip --x64 --arm64
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm ci
+      - name: Build installers
+        run: npx electron-builder ${{ matrix.args }} --publish never
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+      - name: Upload to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: OpenStar UML ${{ github.ref_name }}
+          fail_on_unmatched_files: false
+          files: |
+            dist/*.AppImage
+            dist/*.deb
+            dist/*.rpm
+            dist/*.exe
+            dist/*.zip
+            dist/*.dmg
+          body: |
+            **OpenStar UML ${{ github.ref_name }}** — a free and open-source (MIT) UML modeling tool
+            with a StarUML-style dark workspace, `.mdj` project compatibility, XMI 2.1 import/export,
+            PNG/SVG export, PlantUML + Markdown generation, and a full UML diagram suite
+            (class, use case, sequence, statechart, activity, component, deployment, package).
+
+            > This program was made fully by **Qwen**, an AI assistant.
+
+            ### Downloads
+            | Platform | File |
+            |---|---|
+            | Linux (x64) | `*.AppImage` (portable) · `*.deb` (Debian/Ubuntu) |
+            | Windows (x64) | `*.exe` (NSIS installer) · `*-win-*.zip` (portable) |
+            | macOS | `*.dmg` / `*-mac-*.zip` — `x64` (Intel) and `arm64` (Apple Silicon) |
+
+            ### Notes
+            - Builds are **unsigned** (no paid code-signing certificates):
+              - **Windows**: SmartScreen may warn → *More info → Run anyway*
+              - **macOS**: Gatekeeper may warn → right-click → *Open*, or `xattr -cr "/Applications/OpenStar UML.app"`
+            - Every release is built and tested automatically by CI (390+ assertions,
+              including a full headless UI smoke test) before artifacts are published.
