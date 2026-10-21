@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="526" height="92" viewBox="0 0 526 92"><rect x="0" y="0" width="526" height="92" fill="#ffffff"/><g>
+<g transform="translate(-20,-60)">
+<g>
+<ellipse cx="50" cy="110" rx="10" ry="10" fill="#000000" stroke="none" stroke-width="1" stroke-linejoin="round"/>
+</g>
+<g>
+<rect x="140" y="80" width="90" height="52" rx="14" ry="14" fill="none" stroke="#000000" stroke-width="1" stroke-linejoin="round"/>
+<text x="185" y="90" font-family="Arial,Arial,sans-serif" font-size="13" text-anchor="middle" dominant-baseline="text-before-edge" fill="#000000">Pending</text>
+<text x="185" y="106" font-family="Arial,Arial,sans-serif" font-size="13" text-anchor="middle" dominant-baseline="text-before-edge" fill="#000000">entry / notify</text>
+</g>
+<g>
+<rect x="320" y="80" width="90" height="40" rx="14" ry="14" fill="none" stroke="#000000" stroke-width="1" stroke-linejoin="round"/>
+<text x="365" y="92" font-family="Arial,Arial,sans-serif" font-size="13" text-anchor="middle" dominant-baseline="text-before-edge" fill="#000000">Paid</text>
+</g>
+<g>
+<ellipse cx="513" cy="105" rx="13" ry="13" fill="none" stroke="#000000" stroke-width="1" stroke-linejoin="round"/>
+<ellipse cx="513" cy="105" rx="7.15" ry="7.15" fill="#000000" stroke="none" stroke-width="1" stroke-linejoin="round"/>
+</g>
+<g>
+<polyline points="59.995613313382165,109.70383367960349 99.99780665669108,109.70383367960349 99.99780665669108,107.33333333333333 129,107.33333333333333" fill="none" stroke="#000000" stroke-width="1" stroke-linejoin="round"/>
+<polyline points="128,101.33333333333333 140,107.33333333333333 128,113.33333333333333" fill="none" stroke="#000000" stroke-width="1" stroke-linejoin="round"/>
+<text x="99.99780665669108" y="100.51858350646842" font-family="Arial,Arial,sans-serif" font-size="13" text-anchor="middle" dominant-baseline="central" fill="#000000">Transition1</text>
+</g>
+<g>
+<polyline points="230,104.5 275,104.5 275,101.5 309,101.5" fill="none" stroke="#000000" stroke-width="1" stroke-linejoin="round"/>
+<polyline points="308,95.5 320,101.5 308,107.5" fill="none" stroke="#000000" stroke-width="1" stroke-linejoin="round"/>
+<text x="275" y="95" font-family="Arial,Arial,sans-serif" font-size="13" text-anchor="middle" dominant-baseline="central" fill="#000000">Transition2 pay [amount&gt;0] / ship</text>
+</g>
+<g>
+<polyline points="410,101.52027027027027 455.00370619592,101.52027027027027 455.00370619592,104.56106122945405 489.00741239184003,104.56106122945405" fill="none" stroke="#000000" stroke-width="1" stroke-linejoin="round"/>
+<polyline points="488.00741239184003,98.56106122945405 500.00741239184003,104.56106122945405 488.00741239184003,110.56106122945405" fill="none" stroke="#000000" stroke-width="1" stroke-linejoin="round"/>
+<text x="455.00370619592" y="95.04066574986217" font-family="Arial,Arial,sans-serif" font-size="13" text-anchor="middle" dominant-baseline="central" fill="#000000">Transition3</text>
+</g>
+</g>
+</g></svg>

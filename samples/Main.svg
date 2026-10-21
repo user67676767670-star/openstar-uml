@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="380" height="350" viewBox="0 0 380 350"><rect x="0" y="0" width="380" height="350" fill="#ffffff"/><g>
+<g transform="translate(-60,-40)">
+<g>
+<rect x="80" y="60" width="130" height="81" fill="none" stroke="#000000" stroke-width="1" stroke-linejoin="round"/>
+<text x="145" y="64" font-family="Arial,Arial,sans-serif" font-size="13" font-weight="bold" text-anchor="middle" dominant-baseline="text-before-edge" fill="#000000">Person</text>
+<polyline points="80,85 210,85" fill="none" stroke="#000000" stroke-width="1" stroke-linejoin="round"/>
+<text x="86" y="86" font-family="Arial,Arial,sans-serif" font-size="13" text-anchor="start" dominant-baseline="text-before-edge" fill="#000000">-id : int = 0</text>
+<text x="86" y="102" font-family="Arial,Arial,sans-serif" font-size="13" text-anchor="start" dominant-baseline="text-before-edge" fill="#000000">+name : String</text>
+<polyline points="80,121 210,121" fill="none" stroke="#000000" stroke-width="1" stroke-linejoin="round"/>
+<text x="86" y="122" font-family="Arial,Arial,sans-serif" font-size="13" text-anchor="start" dominant-baseline="text-before-edge" fill="#000000">+getName() : String</text>
+</g>
+<g>
+<rect x="320" y="60" width="100" height="78" fill="none" stroke="#000000" stroke-width="1" stroke-linejoin="round"/>
+<text x="370" y="64" font-family="Arial,Arial,sans-serif" font-size="13" font-weight="bold" text-anchor="middle" dominant-baseline="text-before-edge" fill="#000000">Student</text>
+<polyline points="320,85 420,85" fill="none" stroke="#000000" stroke-width="1" stroke-linejoin="round"/>
+</g>
+<g>
+<rect x="320" y="260" width="100" height="56" fill="none" stroke="#000000" stroke-width="1" stroke-linejoin="round"/>
+<text x="370" y="262" font-family="Arial,Arial,sans-serif" font-size="13" text-anchor="middle" dominant-baseline="text-before-edge" fill="#000000">«interface»</text>
+<text x="370" y="278" font-family="Arial,Arial,sans-serif" font-size="13" font-weight="bold" text-anchor="middle" dominant-baseline="text-before-edge" fill="#000000">Printable</text>
+<polyline points="320,299 420,299" fill="none" stroke="#000000" stroke-width="1" stroke-linejoin="round"/>
+</g>
+<g>
+<polyline points="320,99.33333333333333 220.9997555637034,99.99333496290863" fill="none" stroke="#000000" stroke-width="1" stroke-linejoin="round"/>
+<polygon points="210,100.06666666666666 224.0396880103996,105.97320207844922 223.95968978811814,93.97346873622732" fill="#ffffff" stroke="#000000" stroke-width="1" stroke-linejoin="round"/>
+</g>
+<g>
+<polyline points="370,138 370,249" fill="none" stroke="#000000" stroke-width="1" stroke-dasharray="6,4" stroke-linejoin="round"/>
+<polygon points="370,260 376,246 364,246" fill="#ffffff" stroke="#000000" stroke-width="1" stroke-linejoin="round"/>
+</g>
+<g>
+<polyline points="320,99.33333333333333 220.9997555637034,99.99333496290863" fill="none" stroke="#000000" stroke-width="1" stroke-linejoin="round"/>
+<polygon points="210,100.06666666666666 218.60760092989682,105.46394932578725 227.99960001333284,99.94666933324444 218.5348752732773,94.55510083285826" fill="#ffffff" stroke="#000000" stroke-width="1" stroke-linejoin="round"/>
+<text x="265" y="91.69999999999999" font-family="Arial,Arial,sans-serif" font-size="13" text-anchor="middle" dominant-baseline="central" fill="#000000">enrolls</text>
+<text x="285.9340903451367" y="82.56021717794593" font-family="Arial,Arial,sans-serif" font-size="13" text-anchor="middle" dominant-baseline="central" fill="#000000">students</text>
+<text x="285.9340903451367" y="96.56021717794593" font-family="Arial,Arial,sans-serif" font-size="13" text-anchor="middle" dominant-baseline="central" fill="#000000">0..*</text>
+<text x="244.06590965486328" y="102.83978282205405" font-family="Arial,Arial,sans-serif" font-size="13" text-anchor="middle" dominant-baseline="central" fill="#000000">mentor</text>
+<text x="244.06590965486328" y="116.83978282205405" font-family="Arial,Arial,sans-serif" font-size="13" text-anchor="middle" dominant-baseline="central" fill="#000000">1</text>
+</g>
+<g>
+<polygon points="80,320 193,320 205,332 205,370 80,370" fill="#ffffe0" stroke="#000000" stroke-width="1" stroke-linejoin="round"/>
+<polyline points="193,320 193,332 205,332" fill="none" stroke="#000000" stroke-width="1" stroke-linejoin="round"/>
+<text x="88" y="326" font-family="Arial,Arial,sans-serif" font-size="13" text-anchor="start" dominant-baseline="text-before-edge" fill="#000000">Sample note text</text>
+</g>
+</g>
+</g></svg>

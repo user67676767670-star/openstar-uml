@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:;"/>
+  <title>OpenStar UML</title>
+  <link rel="stylesheet" href="css/app.css"/>
+</head>
+<body data-theme="dark">
+  <div id="app">
+    <div id="menubar"></div>
+    <div id="toolbar"></div>
+    <div id="main">
+      <div id="explorer-panel" class="side-panel">
+        <div class="panel-header">Model Explorer</div>
+        <div id="explorer-host"></div>
+      </div>
+      <div class="splitter" id="split-left"></div>
+      <div id="toolbox-host"></div>
+      <div id="center-col">
+        <div id="tabs-host"></div>
+        <div id="canvas-host"></div>
+        <div id="statusbar">
+          <div id="status-left">Ready</div>
+          <div id="status-right"></div>
+        </div>
+      </div>
+      <div class="splitter" id="split-right"></div>
+      <div id="props-panel" class="side-panel">
+        <div class="panel-header">Properties</div>
+        <div id="props-host"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- core libs -->
+  <script src="js/lib/util.js"></script>
+  <script src="js/lib/textmetrics.js"></script>
+  <script src="js/lib/xml.js"></script>
+  <!-- model core -->
+  <script src="js/core/metamodel.js"></script>
+  <script src="js/core/model.js"></script>
+  <script src="js/core/project.js"></script>
+  <script src="js/core/clipboard.js"></script>
+  <!-- graphics -->
+  <script src="js/gfx/gfx.js"></script>
+  <!-- diagram engine -->
+  <script src="js/diagrams/views.js"></script>
+  <script src="js/diagrams/editor.js"></script>
+  <!-- formats -->
+  <script src="js/formats/mdj.js"></script>
+  <script src="js/formats/xmi.js"></script>
+  <script src="js/formats/plantuml.js"></script>
+  <script src="js/formats/markdown.js"></script>
+  <script src="js/formats/image.js"></script>
+  <!-- ui -->
+  <script src="js/ui/icons.js"></script>
+  <script src="js/ui/dialogs.js"></script>
+  <script src="js/ui/explorer.js"></script>
+  <script src="js/ui/toolbox.js"></script>
+  <script src="js/ui/tabs.js"></script>
+  <script src="js/ui/property-panel.js"></script>
+  <script src="js/ui/menu-defs.js"></script>
+  <script src="js/ui/menubar.js"></script>
+  <script src="js/lib/bridge-fallback.js"></script>
+  <!-- app -->
+  <script src="js/app.js"></script>
+  <script src="js/splitters.js"></script>
+</body>
+</html>

@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="480" height="150" viewBox="0 0 480 150"><rect x="0" y="0" width="480" height="150" fill="#ffffff"/><g>
+<g transform="translate(-40,-60)">
+<g>
+<polygon points="60,93.5 186.5,93.5 186.5,170 60,170" fill="none" stroke="#000000" stroke-width="1" stroke-linejoin="round"/>
+<polygon points="60,93.5 73.5,80 200,80 186.5,93.5" fill="none" stroke="#000000" stroke-width="1" stroke-linejoin="round"/>
+<polygon points="186.5,93.5 200,80 200,156.5 186.5,170" fill="none" stroke="#000000" stroke-width="1" stroke-linejoin="round"/>
+<text x="68" y="98.5" font-family="Arial,Arial,sans-serif" font-size="13" text-anchor="start" dominant-baseline="text-before-edge" fill="#000000">AppServer</text>
+</g>
+<g>
+<polygon points="360,93.5 486.5,93.5 486.5,170 360,170" fill="none" stroke="#000000" stroke-width="1" stroke-linejoin="round"/>
+<polygon points="360,93.5 373.5,80 500,80 486.5,93.5" fill="none" stroke="#000000" stroke-width="1" stroke-linejoin="round"/>
+<polygon points="486.5,93.5 500,80 500,156.5 486.5,170" fill="none" stroke="#000000" stroke-width="1" stroke-linejoin="round"/>
+<text x="368" y="98.5" font-family="Arial,Arial,sans-serif" font-size="13" text-anchor="start" dominant-baseline="text-before-edge" fill="#000000">DBServer</text>
+</g>
+<g>
+<rect x="90" y="130" width="120" height="60" fill="none" stroke="#000000" stroke-width="1" stroke-linejoin="round"/>
+<text x="150" y="134" font-family="Arial,Arial,sans-serif" font-size="13" font-weight="bold" text-anchor="middle" dominant-baseline="text-before-edge" fill="#000000">order.war</text>
+<polygon points="192,136 200,136 204,140 204,150 192,150" fill="#ffffff" stroke="#000000" stroke-width="1" stroke-linejoin="round"/>
+<polyline points="200,136 200,140 204,140" fill="none" stroke="#000000" stroke-width="1" stroke-linejoin="round"/>
+</g>
+<g>
+<polyline points="200,125 360,125" fill="none" stroke="#000000" stroke-width="1" stroke-linejoin="round"/>
+<text x="280" y="117" font-family="Arial,Arial,sans-serif" font-size="13" text-anchor="middle" dominant-baseline="central" fill="#000000">tcp</text>
+</g>
+</g>
+</g></svg>

@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="520" height="130" viewBox="0 0 520 130"><rect x="0" y="0" width="520" height="130" fill="#ffffff"/><g>
+<g transform="translate(-20,-40)">
+<g>
+<ellipse cx="71.5" cy="93" rx="9" ry="9" fill="none" stroke="#000000" stroke-width="1" stroke-linejoin="round"/>
+<polyline points="71.5,102 71.5,118" fill="none" stroke="#000000" stroke-width="1" stroke-linejoin="round"/>
+<polyline points="57.1,106.8 85.9,106.8" fill="none" stroke="#000000" stroke-width="1" stroke-linejoin="round"/>
+<polyline points="71.5,118 58.9,132" fill="none" stroke="#000000" stroke-width="1" stroke-linejoin="round"/>
+<polyline points="71.5,118 84.1,132" fill="none" stroke="#000000" stroke-width="1" stroke-linejoin="round"/>
+<text x="71.5" y="135" font-family="Arial,Arial,sans-serif" font-size="13" text-anchor="middle" dominant-baseline="text-before-edge" fill="#000000">Customer</text>
+</g>
+<g>
+<ellipse cx="260" cy="90" rx="60" ry="30" fill="none" stroke="#000000" stroke-width="1" stroke-linejoin="round"/>
+<text x="260" y="83" font-family="Arial,Arial,sans-serif" font-size="13" text-anchor="middle" dominant-baseline="text-before-edge" fill="#000000">Place Order</text>
+</g>
+<g>
+<ellipse cx="460" cy="90" rx="60" ry="30" fill="none" stroke="#000000" stroke-width="1" stroke-linejoin="round"/>
+<text x="460" y="83" font-family="Arial,Arial,sans-serif" font-size="13" text-anchor="middle" dominant-baseline="text-before-edge" fill="#000000">Pay</text>
+</g>
+<g>
+<polyline points="320,90 389,90" fill="none" stroke="#000000" stroke-width="1" stroke-dasharray="6,4" stroke-linejoin="round"/>
+<polyline points="388,84 400,90 388,96" fill="none" stroke="#000000" stroke-width="1" stroke-linejoin="round"/>
+<text x="360" y="82" font-family="Arial,Arial,sans-serif" font-size="13" text-anchor="middle" dominant-baseline="central" fill="#000000">«include»</text>
+</g>
+</g>
+</g></svg>

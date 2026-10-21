@@ -1,0 +1,82 @@
+{
+  "name": "openstar-uml",
+  "productName": "OpenStar UML",
+  "version": "1.0.0",
+  "description": "A free and open-source UML modeling tool — Model. Design. Document.",
+  "main": "main/main.js",
+  "license": "MIT",
+  "author": "OpenStar UML contributors",
+  "keywords": [
+    "uml",
+    "modeling",
+    "diagram",
+    "class-diagram",
+    "sequence-diagram",
+    "usecase",
+    "statechart",
+    "activity",
+    "component",
+    "deployment",
+    "mdj",
+    "xmi",
+    "plantuml",
+    "electron",
+    "foss"
+  ],
+  "scripts": {
+    "start": "electron .",
+    "test": "node tests/run-all.js",
+    "dist": "electron-builder",
+    "pack": "electron-builder --dir"
+  },
+  "devDependencies": {
+    "electron": "^44.0.0",
+    "electron-builder": "^26.0.0",
+    "jsdom": "^29.0.0"
+  },
+  "build": {
+    "appId": "org.openstar.uml",
+    "productName": "OpenStar UML",
+    "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
+    "files": [
+      "main/**/*",
+      "renderer/**/*",
+      "assets/**/*",
+      "package.json"
+    ],
+    "fileAssociations": [
+      {
+        "ext": "mdj",
+        "name": "UML Model",
+        "description": "StarUML-compatible model file",
+        "role": "Editor"
+      }
+    ],
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb",
+        "rpm"
+      ],
+      "category": "Development",
+      "maintainer": "OpenStar UML contributors"
+    },
+    "win": {
+      "target": [
+        "nsis",
+        "zip"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    },
+    "mac": {
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "category": "public.app-category.developer-tools"
+    }
+  }
+}
