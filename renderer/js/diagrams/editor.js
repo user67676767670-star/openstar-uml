@@ -498,6 +498,17 @@
       if (hg && CURSORS[hg.handle.role]) this.canvas.style.cursor = CURSORS[hg.handle.role];
       else if (hg) this.canvas.style.cursor = 'pointer';
       else {
+        // hit-testing rebuilds drawOrder() over the whole diagram — doing it on
+        // every mousemove made large diagrams laggy. Only re-test when the
+        // pointer moved to a different grid cell (4 px), and only update the
+        // cursor text (hover highlight is recomputed here at most as often).
+        var now = Date.now();
+        var gx = Math.round(sp.x / 4), gy = Math.round(sp.y / 4);
+        if (this._lastHoverCell && this._lastHoverCell.gx === gx &&
+            this._lastHoverCell.gy === gy && now - this._lastHoverCell.t < 100) {
+          return;
+        }
+        this._lastHoverCell = { gx: gx, gy: gy, t: now };
         var hv = this.viewAt(wp);
         this.canvas.style.cursor = this.tool ? 'crosshair' : hv ? 'move' : (this._spaceDown ? 'grab' : 'default');
         if (hv !== this.hover) { this.hover = hv; }
@@ -516,7 +527,19 @@
       var r = util.normalizeRect(d.start, wp);
       var sel = d.additive ? d.baseSel.slice() : [];
       (this.diagram.ownedViews || []).forEach(function (v) {
-        var vr = views.viewRect(v);
+        // Edge views have no left/top/width/height — viewRect() would be an
+        // empty rect at the origin, so marquee never selected edges. Use the
+        // bounding box of the routed points instead.
+        var vr;
+        if (meta.isEdgeView(v._type) || v._type === 'UMLSeqMessageView') {
+          var pts = views.routedPoints(v);
+          var xs = pts.map(function (p) { return p.x; });
+          var ys = pts.map(function (p) { return p.y; });
+          var minX = Math.min.apply(null, xs), minY = Math.min.apply(null, ys);
+          vr = { x: minX, y: minY, width: Math.max.apply(null, xs) - minX, height: Math.max.apply(null, ys) - minY };
+        } else {
+          vr = views.viewRect(v);
+        }
         if (util.intersects(r, vr) && sel.indexOf(v) < 0) sel.push(v);
       });
       this.selection = sel;

@@ -131,6 +131,40 @@ app.on('window-all-closed', () => {
 
 /* ---------- IPC ---------- */
 
+/* Security policy for renderer-initiated file access: only paths that the
+ * user selected through a native dialog are writable/readable. This prevents
+ * a compromised or buggy renderer from reading/writing arbitrary files. */
+const MAX_PATH_LEN = 4096;
+const recentlyDialoged = new Map(); // resolved path → expiry timestamp
+const DIALOG_PATH_TTL_MS = 30 * 60 * 1000;
+
+function rememberDialogPath(p) {
+  try {
+    recentlyDialoged.set(path.resolve(p), Date.now() + DIALOG_PATH_TTL_MS);
+    if (recentlyDialoged.size > 50) {
+      const now = Date.now();
+      for (const [k, exp] of recentlyDialoged) if (exp < now) recentlyDialoged.delete(k);
+    }
+  } catch (e) { /* ignore */ }
+}
+
+function isAllowedPath(p) {
+  if (typeof p !== 'string' || !p || p.indexOf('\0') >= 0 || p.length > MAX_PATH_LEN) return false;
+  let abs;
+  try { abs = path.resolve(p); } catch (e) { return false; }
+  const exp = recentlyDialoged.get(abs);
+  if (exp === undefined) return false;
+  if (exp < Date.now()) { recentlyDialoged.delete(abs); return false; }
+  return true;
+}
+
+function atomicWriteFileSync(p, data) {
+  const tmp = p + '.tmp-' + process.pid + '-' + Date.now();
+  fs.writeFileSync(tmp, data);
+  try { fs.unlinkSync(p); } catch (e) { if (e.code !== 'ENOENT') throw e; }
+  fs.renameSync(tmp, p);
+}
+
 function filtersFor(accept) {
   if (accept && /xmi|xml/i.test(accept)) {
     return [
@@ -154,6 +188,7 @@ ipcMain.handle('dialog:open', async (event, accept) => {
   });
   if (res.canceled || !res.filePaths.length) return null;
   const p = res.filePaths[0];
+  rememberDialogPath(p);
   const text = fs.readFileSync(p, 'utf8');
   return { path: p, name: path.basename(p), text };
 });
@@ -173,22 +208,26 @@ ipcMain.handle('dialog:save', async (event, defaultName, ext) => {
     filters
   });
   if (res.canceled || !res.filePath) return null;
+  rememberDialogPath(res.filePath);
   return res.filePath;
 });
 
 ipcMain.handle('fs:read', async (_e, p) => {
+  if (!isAllowedPath(p)) throw new Error('Access denied: path was not selected in a file dialog');
   return fs.readFileSync(p, 'utf8');
 });
 
 ipcMain.handle('fs:write', async (_e, p, text) => {
-  fs.writeFileSync(p, text, 'utf8');
+  if (!isAllowedPath(p)) throw new Error('Access denied: path was not selected in a file dialog');
+  atomicWriteFileSync(p, String(text));
   return true;
 });
 
 ipcMain.handle('fs:writeBase64', async (_e, p, dataUrl) => {
+  if (!isAllowedPath(p)) throw new Error('Access denied: path was not selected in a file dialog');
   const m = /^data:[^;]+;base64,(.*)$/s.exec(String(dataUrl));
   const b64 = m ? m[1] : String(dataUrl);
-  fs.writeFileSync(p, Buffer.from(b64, 'base64'));
+  atomicWriteFileSync(p, Buffer.from(b64, 'base64'));
   return true;
 });
 
@@ -234,19 +273,20 @@ ipcMain.handle('print:image', async (event, dataUrl) => {
   // data URLs can exceed Chromium's URL length limit for big diagrams →
   // write a temp PNG and print that instead
   const m = /^data:[^;]+;base64,([\s\S]*)$/.exec(String(dataUrl));
-  const tmp = path.join(app.getPath('temp'), 'openstar-print-' + Date.now() + '.png');
-  fs.writeFileSync(tmp, Buffer.from(m ? m[1] : String(dataUrl), 'base64'));
+  if (!m) throw new Error('print:image expects a base64 data URL');
+  const tmp = path.join(app.getPath('temp'), 'openstar-print-' + Date.now() + '-' + process.pid + '.png');
+  fs.writeFileSync(tmp, Buffer.from(m[1], 'base64'));
   const win = new BrowserWindow({ show: false, webPreferences: { sandbox: true } });
   try {
-    await win.loadURL('file://' + tmp);
+    // file:// URL must be properly encoded (paths with spaces etc.)
+    await win.loadURL('file://' + encodeURI(tmp));
     await new Promise((resolve) => {
       win.webContents.print({ silent: false, printBackground: true }, () => resolve());
     });
   } finally {
-    setTimeout(() => {
-      if (!win.isDestroyed()) win.close();
-      try { fs.unlinkSync(tmp); } catch (e) { /* ignore */ }
-    }, 500);
+    // always clean up the temp file, even if load/print threw
+    try { fs.unlinkSync(tmp); } catch (e) { /* ignore */ }
+    if (!win.isDestroyed()) win.close();
   }
   return true;
 });

@@ -202,6 +202,9 @@
     var isMac = /Mac|iP(hone|ad|od)/.test(navigator.platform || '');
     var mod = isMac ? ev.metaKey : ev.ctrlKey;
     var key = (ev.key || '').toLowerCase();
+    // '+' arrives as Shift+'=' on US layouts — normalize so 'CmdOrCtrl+=' also
+    // matches the physical key people press for Zoom In.
+    if (key === '+') key = '=';
     for (var i = 0; i < this.keymap.length; i++) {
       var a = this.keymap[i].accel;
       var parts = a.split('+');
@@ -214,11 +217,15 @@
         else k = lp;
       });
       if (needMod !== mod) continue;
-      if (needShift !== ev.shiftKey && !(k === '=' && ev.shiftKey)) continue;
+      if (needShift && !ev.shiftKey) continue;
+      // do not fire unshifted accelerators while Shift is held (prevents
+      // Ctrl+Shift+Z from matching CmdOrCtrl+Z); allow the special '='/'+'
+      // pair since both map to the same physical key here.
+      if (!needShift && ev.shiftKey && !(k === '=' && (key === '=' || ev.key === '+'))) continue;
       if (needAlt !== ev.altKey) continue;
       var evKey = key;
       if (evKey === ' ') evKey = 'space';
-      if (k === '=') { if (evKey === '=' || evKey === '+') return this.keymap[i].cmd; else continue; }
+      if (k === '=') { if (evKey === '=' ) return this.keymap[i].cmd; else continue; }
       if (k === 'delete') { if (evKey === 'delete' || evKey === 'backspace') return this.keymap[i].cmd; else continue; }
       if (evKey === k) return this.keymap[i].cmd;
     }
@@ -589,8 +596,14 @@
   };
 
   App.prototype.loadProjectText = function (text, path) {
+    // Snapshot the current project so a failed load can restore it:
+    // Mdj.load() mutates the live project in place and a malformed file
+    // would otherwise leave the editor showing a half-parsed model.
+    var backup = null;
     try {
-      var before = this.project.root ? this.project.root.name : null;
+      if (this.project.root) backup = OS.Mdj.stateJSON(this.project);
+    } catch (eSnap) { backup = null; }
+    try {
       OS.Mdj.load(this.project, text);
       if (path) {
         this.project.filePath = path;
@@ -604,6 +617,11 @@
       this.showMessage('Project loaded.', 1800);
     } catch (e) {
       console.error(e);
+      if (backup !== null) {
+        try { OS.Mdj.loadState(this.project, backup); } catch (eRestore) { console.error(eRestore); }
+        this.editor.setDiagram(null);
+        this.refreshAll();
+      }
       dialogs.alert('Open Failed', 'This file could not be parsed as an .mdj model.<br/><br/><code>' +
         util.xmlEscape(String(e && e.message || e)) + '</code>');
     }
@@ -645,7 +663,6 @@
   App.prototype.writeProjectFile = function (path) {
     var text;
     try {
-      views.prepareDiagramAll && views.prepareDiagramAll(this.project);
       this.project.eachDiagram(function (d) { OS.views.prepareDiagram(d); });
       text = OS.Mdj.serialize(this.project);
     } catch (e) {

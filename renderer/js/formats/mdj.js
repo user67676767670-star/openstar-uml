@@ -268,25 +268,48 @@
     subs.push(nameLbl, stereoLbl, propLbl);
     v._labelRefs = { name: nameLbl._id, stereotype: stereoLbl._id, property: propLbl._id };
     if (v._type === 'UMLAssociationView') {
-      var tailRole = edgeLabelView(v._id + ':L3', v._id, { visible: false, alpha: 0.5235987755982988, distance: 30, font: font });
-      var tailProp = edgeLabelView(v._id + ':L4', v._id, { visible: false, alpha: 0.5235987755982988, distance: 45, font: font });
-      var tailMult = edgeLabelView(v._id + ':L5', v._id, { visible: false, alpha: -0.5235987755982988, distance: 30, font: font });
-      var headRole = edgeLabelView(v._id + ':L6', v._id, { visible: false, alpha: 2.6179938779914944, distance: 30, font: font });
-      var headProp = edgeLabelView(v._id + ':L7', v._id, { visible: false, alpha: 2.6179938779914944, distance: 45, font: font });
-      var headMult = edgeLabelView(v._id + ':L8', v._id, { visible: false, alpha: -2.617993877991494, distance: 30, font: font });
-      subs.push(tailRole, tailProp, tailMult, headRole, headProp, headMult);
-      v._labelRefs.tailRoleName = tailRole._id;
-      v._labelRefs.tailProperty = tailProp._id;
-      v._labelRefs.tailMultiplicity = tailMult._id;
+      // StarUML packs association role labels head-side first:
+      // L3=headRoleName, L4=headProperty, L5=headMultiplicity,
+      // L6=tailRoleName, L7=tailProperty, L8=tailMultiplicity.
+      // (views.drawAssociation places ownedEnds[0] text at the head end.)
+      var headRole = edgeLabelView(v._id + ':L3', v._id, { visible: false, alpha: 2.6179938779914944, distance: 30, font: font });
+      var headProp = edgeLabelView(v._id + ':L4', v._id, { visible: false, alpha: 2.6179938779914944, distance: 45, font: font });
+      var headMult = edgeLabelView(v._id + ':L5', v._id, { visible: false, alpha: -2.617993877991494, distance: 30, font: font });
+      var tailRole = edgeLabelView(v._id + ':L6', v._id, { visible: false, alpha: 0.5235987755982988, distance: 30, font: font });
+      var tailProp = edgeLabelView(v._id + ':L7', v._id, { visible: false, alpha: 0.5235987755982988, distance: 45, font: font });
+      var tailMult = edgeLabelView(v._id + ':L8', v._id, { visible: false, alpha: -0.5235987755982988, distance: 30, font: font });
+      subs.push(headRole, headProp, headMult, tailRole, tailProp, tailMult);
       v._labelRefs.headRoleName = headRole._id;
       v._labelRefs.headProperty = headProp._id;
       v._labelRefs.headMultiplicity = headMult._id;
+      v._labelRefs.tailRoleName = tailRole._id;
+      v._labelRefs.tailProperty = tailProp._id;
+      v._labelRefs.tailMultiplicity = tailMult._id;
     }
     return subs;
   }
 
   function serializeObject(project, fileMode) {
-    return writeElement(project.root, fileMode);
+    // NOTE: serialization must not permanently mutate the live model.
+    // writeEdgeSubViews() assigns v._labelRefs as a side effect; remember the
+    // pre-serialization values and restore them afterwards so undo snapshots
+    // and repeated saves stay deterministic.
+    var savedLabelRefs = [];
+    if (fileMode) {
+      project.eachDiagram(function (d) {
+        (d.ownedViews || []).forEach(function (v) {
+          savedLabelRefs.push([v, '_labelRefs' in v ? v._labelRefs : undefined]);
+        });
+      });
+    }
+    try {
+      return writeElement(project.root, fileMode);
+    } finally {
+      savedLabelRefs.forEach(function (pair) {
+        if (pair[1] === undefined) delete pair[0]._labelRefs;
+        else pair[0]._labelRefs = pair[1];
+      });
+    }
   }
 
   function serialize(project) {
@@ -547,6 +570,15 @@
     function num(x) { return typeof x === 'number' && isFinite(x) ? x : 0; }
     function stripBom(s) { return s.charCodeAt(0) === 0xFEFF ? s.slice(1) : s; }
 
+    // Transactional load: capture the current state first so that if any
+    // stage below throws, we can restore the previous project instead of
+    // leaving it half-replaced (byId cleared, root swapped, refs dangling).
+    var snapshotForRollback = null;
+    try {
+      snapshotForRollback = project.root ? JSON.stringify(serializeObject(project, false)) : null;
+    } catch (eSave) { snapshotForRollback = null; }
+
+    function doLoad() {
     project.byId.clear();
     var root = buildElement(raw, null);
     root._parent = null;
@@ -577,7 +609,20 @@
     project.fileName = null;
     project.setDirty(false);
     if (!opts || !opts.keepHistory) project.clearHistory();
-    return root;
+    } // function doLoad
+
+    try {
+      doLoad();
+    } catch (e) {
+      // Roll back: the failed load may have partially replaced the project
+      // (byId cleared / root swapped). Rebuild the previous state from the
+      // snapshot captured before we started, keeping undo history intact.
+      if (snapshotForRollback !== null) {
+        try { load(project, JSON.parse(snapshotForRollback), { keepHistory: true }); }
+        catch (e2) { console.error('rollback failed', e2); }
+      }
+      throw e;
+    }
   }
 
   function loadState(project, text) {

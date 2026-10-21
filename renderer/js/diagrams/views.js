@@ -267,9 +267,12 @@
     var views = (diagram.ownedViews || []).slice();
     // stable topological: containers before contained
     var out = [], placed = new Set();
+    // O(1) membership test instead of views.indexOf() inside the recursion
+    // (the old version was O(n²) per call, and viewAt() calls this on every mousemove)
+    var viewSet = new Set(views);
     function place(v) {
       if (placed.has(v)) return;
-      if (v.containerView && views.indexOf(v.containerView) >= 0) place(v.containerView);
+      if (v.containerView && viewSet.has(v.containerView)) place(v.containerView);
       placed.add(v);
       out.push(v);
     }
@@ -438,15 +441,22 @@
   function assocEnds(v) {
     var m = v.model;
     var ends = (m && m.ownedEnds) || [];
-    var tailEnd = ends[0] || null, headEnd = ends[1] || null;
-    // match by model identity when possible
-    if (ends.length === 2 && v.tail && v.head) {
-      var tailModel = v.tail.model, headModel = v.head.model;
-      if (tailEnd && tailEnd.reference === headModel && headEnd && headEnd.reference === tailModel) {
-        var tmp = tailEnd; tailEnd = headEnd; headEnd = tmp;
-      }
+    // StarUML invariant: ownedEnds[0] is the end on the *head* side of the
+    // association view, ownedEnds[1] is on the *tail* side. Verify each end's
+    // `reference` against both endpoint models so mislabelled role names /
+    // multiplicities cannot occur even when only one end has a reference.
+    var e0 = ends[0] || null, e1 = ends[1] || null;
+    var headModel = v.head && v.head.model, tailModel = v.tail && v.tail.model;
+    var headSide = e0;
+    if (e0 && e1 && headModel && tailModel) {
+      var e0IsHead = e0.reference === headModel;
+      var e1IsHead = e1.reference === headModel;
+      if (e0IsHead && !e1IsHead) headSide = e0;          // default order OK
+      else if (!e0IsHead && e1IsHead) headSide = e1;     // swapped order
+      // if neither/both match, keep the documented default (ends[0] = head)
     }
-    return { tail: tailEnd, head: headEnd };
+    var tailSide = (headSide === e0) ? e1 : e0;
+    return { tail: tailSide, head: headSide };
   }
 
   /* ============================ draw functions ============================ */
@@ -822,13 +832,20 @@
 
   function lifelineBottom(diagram, v) {
     var maxY = (v.top || 0) + (v.height || 0) + 100;
+    // horizontal extent of this lifeline's centre line (for overlap checks)
+    var lx = (v.left || 0) + (v.width || 0) / 2;
+    var lHalf = Math.max((v.width || 0) / 2, 40);
     (diagram.ownedViews || []).forEach(function (o) {
       if (o._type === 'UMLSeqMessageView' && (o.head === v || o.tail === v)) {
         var ys = (o.points || []).map(function (p) { return p.y; });
         maxY = Math.max(maxY, Math.max.apply(null, ys.concat([0])) + 60);
       }
       if (o._type === 'UMLCombinedFragmentView') {
-        maxY = Math.max(maxY, (o.top || 0) + (o.height || 0) + 40);
+        // only extend past fragments that actually span this lifeline's X
+        var fx = o.left || 0, fw = o.width || 0;
+        if (fx - lHalf <= lx && lx <= fx + fw + lHalf) {
+          maxY = Math.max(maxY, (o.top || 0) + (o.height || 0) + 40);
+        }
       }
     });
     return maxY;
