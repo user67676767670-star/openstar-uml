@@ -13,7 +13,12 @@
    * Text nodes are stored as { name: '#text', text }.
    * Throws Error with line info on malformed input.
    */
-  function parse(str) {
+  function parse(str, opts) {
+    opts = opts || {};
+    var maxDepth = opts.maxDepth || 256;
+    var maxSize = opts.maxSize || 32 * 1024 * 1024; // 32 MB hard cap
+    if (typeof str !== 'string') throw new Error('XML parse error: input is not a string');
+    if (str.length > maxSize) throw new Error('XML parse error: document too large (' + str.length + ' chars)');
     var pos = 0;
     var root = { name: '#document', attrs: {}, children: [] };
     var stack = [root];
@@ -106,7 +111,12 @@
           text: ''
         };
         top().children.push(el);
-        if (!selfClosing) stack.push(el);
+        if (!selfClosing) {
+          // recursion/stack-overflow guard: hostile documents nesting thousands
+          // of elements deep would otherwise crash the app on import
+          if (stack.length >= maxDepth) fail('maximum element nesting depth exceeded (' + maxDepth + ')');
+          stack.push(el);
+        }
       } else {
         var next = str.indexOf('<', pos);
         if (next < 0) next = str.length;
@@ -119,24 +129,34 @@
     }
     if (stack.length !== 1) fail('unclosed tag <' + top().name + '>');
 
-    // fill concatenated text on elements
-    (function fill(node) {
-      if (!node.children) return;
+    // fill concatenated text on elements — iterative (explicit stack) so a
+    // deeply nested document cannot overflow the JS call stack here
+    var fstack = [root];
+    while (fstack.length) {
+      var node = fstack.pop();
+      if (!node.children) continue;
       var t = '';
       for (var i = 0; i < node.children.length; i++) {
         var c = node.children[i];
         if (c.name === '#text') t += c.text;
-        else fill(c);
+        else { fstack.push(c); }
       }
       node.text = t;
-    })(root);
+    }
     return root;
+  }
+
+  function safeCodePoint(n) {
+    // String.fromCodePoint throws RangeError on out-of-range / NaN values —
+    // hostile entity references like &#xFFFFFFFF; must not crash the parser.
+    if (!isFinite(n) || n < 0 || n > 0x10FFFF) return '\uFFFD'; // replacement char
+    return String.fromCodePoint(n);
   }
 
   function decodeEntities(s) {
     return String(s)
-      .replace(/&#x([0-9a-fA-F]+);/g, function (_, h) { return String.fromCodePoint(parseInt(h, 16)); })
-      .replace(/&#(\d+);/g, function (_, d) { return String.fromCodePoint(parseInt(d, 10)); })
+      .replace(/&#x([0-9a-fA-F]+);/g, function (_, h) { return safeCodePoint(parseInt(h, 16)); })
+      .replace(/&#(\d+);/g, function (_, d) { return safeCodePoint(parseInt(d, 10)); })
       .replace(/&lt;/g, '<').replace(/&gt;/g, '>')
       .replace(/&quot;/g, '"').replace(/&apos;/g, "'")
       .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&');
@@ -171,12 +191,17 @@
     return out;
   }
   function descendants(node, name, out) {
+    // iterative: hostile deeply-nested XML must not overflow the call stack
     out = out || [];
     if (!node || !node.children) return out;
-    for (var i = 0; i < node.children.length; i++) {
-      var c = node.children[i];
-      if (name === undefined || c.name === name || stripNs(c.name) === name) out.push(c);
-      descendants(c, name, out);
+    var stack = [node];
+    while (stack.length) {
+      var n = stack.pop();
+      for (var i = 0; i < n.children.length; i++) {
+        var c = n.children[i];
+        if (name === undefined || c.name === name || stripNs(c.name) === name) out.push(c);
+        if (c.children && c.children.length) stack.push(c);
+      }
     }
     return out;
   }

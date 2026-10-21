@@ -33,6 +33,7 @@ let currentSuite = '';
 
 global.t = {
   suite(name) { currentSuite = name; console.log('\n▸ ' + name); },
+  notOk(cond, msg) { this.ok(!cond, msg); },
   ok(cond, msg) {
     if (cond) { passed++; console.log('  ✓ ' + msg); }
     else { failed++; failures.push(currentSuite + ': ' + msg); console.log('  ✗ ' + msg); }
@@ -71,6 +72,7 @@ const suites = [
   './test-markdown.js',
   './test-clipboard.js',
   './test-main-menu.js',
+  './test-hardening.js',
   './test-ui.js'
 ];
 

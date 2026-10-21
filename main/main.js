@@ -11,6 +11,24 @@ const { buildAppMenu } = require('./menu.js');
 let mainWindow = null;
 let launchFile = null;
 let menuStates = {};
+/* Must live at module scope: the 'window:close' IPC handler below sets this
+ * flag, but it used to be declared inside createWindow() where the handler
+ * could not see it (ReferenceError on close → window could never be closed
+ * after a "Don't Save" choice). */
+let forceClose = false;
+
+/* DoS guard: refuse absurdly large model files instead of freezing/OOMing. */
+const MAX_FILE_BYTES = 64 * 1024 * 1024; // 64 MB
+
+function statLimited(p) {
+  const st = fs.statSync(p);
+  if (!st.isFile()) throw new Error('Not a file: ' + p);
+  if (st.size > MAX_FILE_BYTES) {
+    throw new Error('File too large (' + Math.round(st.size / 1048576) + ' MB, limit ' +
+      Math.round(MAX_FILE_BYTES / 1048576) + ' MB)');
+  }
+  return st;
+}
 
 /* ---------- single instance ---------- */
 
@@ -87,8 +105,6 @@ function createWindow() {
     mainWindow.focus();
   });
 
-  let forceClose = false;
-
   mainWindow.on('close', (e) => {
     // Ask the renderer to confirm (it shows Save / Don't Save / Cancel when dirty),
     // because Electron silently swallows beforeunload dialogs.
@@ -111,6 +127,14 @@ function createWindow() {
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     if (/^https?:\/\//i.test(url)) shell.openExternal(url);
     return { action: 'deny' };
+  });
+
+  // In-window navigation to anything but our own content is denied:
+  // blocks javascript:/file:/remote redirects coming from injected markup.
+  mainWindow.webContents.on('will-navigate', (e, url) => {
+    const self = require('url').pathToFileURL(
+      path.join(__dirname, '..', 'renderer', 'index.html')).toString();
+    if (url !== self) e.preventDefault();
   });
 }
 
@@ -145,6 +169,32 @@ app.on('open-file', (event, p) => {   // macOS file association / dock drop
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
+});
+
+/* ---------- crash recovery (autosave) ---------- */
+
+function recoveryPath() { return path.join(app.getPath('userData'), 'recovery.json'); }
+
+ipcMain.handle('recovery:save', (_e, state) => {
+  // renderer periodically pushes a compact snapshot so an unsaved project can
+  // be offered back after a crash; capped to avoid disk/memory abuse
+  const json = JSON.stringify(state || null);
+  if (json.length > MAX_FILE_BYTES) throw new Error('Recovery snapshot too large');
+  try { fs.writeFileSync(recoveryPath(), json); } catch (e) { /* ignore */ }
+  return true;
+});
+
+ipcMain.handle('recovery:load', () => {
+  try {
+    const raw = fs.readFileSync(recoveryPath(), 'utf8');
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch (e) { return null; }
+});
+
+ipcMain.handle('recovery:clear', () => {
+  try { fs.unlinkSync(recoveryPath()); } catch (e) { /* ignore */ }
+  return true;
 });
 
 /* ---------- IPC ---------- */
@@ -206,6 +256,7 @@ ipcMain.handle('dialog:open', async (event, accept) => {
   });
   if (res.canceled || !res.filePaths.length) return null;
   const p = res.filePaths[0];
+  try { statLimited(p); } catch (e) { throw new Error('Cannot open file: ' + e.message); }
   rememberDialogPath(p);
   const text = fs.readFileSync(p, 'utf8');
   return { path: p, name: path.basename(p), text };
@@ -232,12 +283,15 @@ ipcMain.handle('dialog:save', async (event, defaultName, ext) => {
 
 ipcMain.handle('fs:read', async (_e, p) => {
   if (!isAllowedPath(p)) throw new Error('Access denied: path was not selected in a file dialog');
+  statLimited(p);
   return fs.readFileSync(p, 'utf8');
 });
 
 ipcMain.handle('fs:write', async (_e, p, text) => {
   if (!isAllowedPath(p)) throw new Error('Access denied: path was not selected in a file dialog');
-  atomicWriteFileSync(p, String(text));
+  const s = String(text);
+  if (s.length > MAX_FILE_BYTES) throw new Error('Refusing to write oversized content');
+  atomicWriteFileSync(p, s);
   return true;
 });
 
@@ -245,6 +299,7 @@ ipcMain.handle('fs:writeBase64', async (_e, p, dataUrl) => {
   if (!isAllowedPath(p)) throw new Error('Access denied: path was not selected in a file dialog');
   const m = /^data:[^;]+;base64,(.*)$/s.exec(String(dataUrl));
   const b64 = m ? m[1] : String(dataUrl);
+  if (b64.length > Math.ceil(MAX_FILE_BYTES / 3) * 4 + 8) throw new Error('Refusing to write oversized image');
   atomicWriteFileSync(p, Buffer.from(b64, 'base64'));
   return true;
 });
@@ -293,12 +348,22 @@ ipcMain.handle('print:image', async (event, dataUrl) => {
   // write a temp PNG and print that instead
   const m = /^data:[^;]+;base64,([\s\S]*)$/.exec(String(dataUrl));
   if (!m) throw new Error('print:image expects a base64 data URL');
+  if (m[1].length > Math.ceil(MAX_FILE_BYTES / 3) * 4 + 8) throw new Error('Image too large to print');
   const tmp = path.join(app.getPath('temp'), 'openstar-print-' + Date.now() + '-' + process.pid + '.png');
   fs.writeFileSync(tmp, Buffer.from(m[1], 'base64'));
-  const win = new BrowserWindow({ show: false, webPreferences: { sandbox: true } });
+  const win = new BrowserWindow({
+    show: false,
+    webPreferences: {
+      sandbox: true,
+      contextIsolation: true,
+      nodeIntegration: false,
+      // the print window loads an untrusted image file — give it no bridge at all
+      preload: undefined
+    }
+  });
   try {
     // file:// URL must be properly encoded (paths with spaces etc.)
-    await win.loadURL('file://' + encodeURI(tmp));
+    await win.loadURL(require('url').pathToFileURL(tmp).toString());
     await new Promise((resolve) => {
       win.webContents.print({ silent: false, printBackground: true }, () => resolve());
     });

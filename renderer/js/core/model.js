@@ -97,6 +97,7 @@
     // remove from parent list
     if (el._parent) removeOwned(el._parent, el);
     doomed.forEach(function (m) { project._unregister(m); });
+    clearDanglingRefs(project, doomed);
     return doomed;
   }
 
@@ -128,7 +129,52 @@
         if (m.ownedEnds[i].reference && doomed.has(m.ownedEnds[i].reference)) return true;
       }
     }
+    // irregular references: attributes/operation-params typed by a deleted
+    // classifier, operation "from" back-ref, generalization/supertype fields —
+    // previously these were missed and left dangling $refs in exports
+    var refFields = ['type', 'supertype', 'generalization', 'classifier', 'represent', 'from'];
+    for (var f = 0; f < refFields.length; f++) {
+      var r = m[refFields[f]];
+      if (r && typeof r === 'object' && doomed.has(r)) return true;
+    }
     return false;
+  }
+
+  /**
+   * Drop every reference to `doomed` models that survives deletion: null out
+   * source/target/type/reference/represent fields on remaining elements so no
+   * dangling object pointers stay in the live project (PlantUML/XMI export
+   * used to crash or emit bogus ids after cascading deletes).
+   */
+  function clearDanglingRefs(project, doomed) {
+    var REF_FIELDS = ['source', 'target', 'type', 'reference', 'represent',
+      'classifier', 'supertype', 'from', 'containerView'];
+    // Iterate the doomed SET (small), not the whole registry: the registry is
+    // already drained by _unregister() before this runs, so a byId-based scan
+    // would miss surviving elements that still point at deleted models.
+    function purge(refHolder) {
+      for (var i = 0; i < REF_FIELDS.length; i++) {
+        var f = REF_FIELDS[i];
+        if (refHolder[f] && typeof refHolder[f] === 'object' && doomed.has(refHolder[f])) refHolder[f] = null;
+      }
+      if (refHolder.ownedEnds) {
+        for (var e = 0; e < refHolder.ownedEnds.length; e++) {
+          if (refHolder.ownedEnds[e].reference && doomed.has(refHolder.ownedEnds[e].reference)) {
+            refHolder.ownedEnds[e].reference = null;
+          }
+        }
+      }
+    }
+    // Holders can be: surviving elements in the tree, views of doomed models
+    // (already collected), and the doomed objects themselves are skipped.
+    project.eachElement(purge);
+    project.byId.forEach(function (el) { purge(el); });
+    // Also sweep the live model tree — covers any holder that lost its
+    // registry entry during the cascade.
+    if (project.root) {
+      descendants(project.root).forEach(purge);
+      purge(project.root);
+    }
   }
 
   /**
@@ -149,7 +195,6 @@
         removed.push(deleteView(project, v, doomedModels));
       }
     });
-    if (doomedModels) doomedModels.forEach(function () { });
     // if edge view: delete its model too (unless already doomed)
     var model = view.model;
     util.removeItem(diagram.ownedViews, view);
@@ -331,6 +376,7 @@
     deleteModel: deleteModel,
     deleteView: deleteView,
     collectDoomedModels: collectDoomedModels,
+    clearDanglingRefs: clearDanglingRefs,
     uniqueName: uniqueName,
     visibilityMark: visibilityMark,
     typeName: typeName,

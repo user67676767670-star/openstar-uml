@@ -60,8 +60,14 @@
     },
 
     writeBase64File: function (path, dataUrl) {
+      var s = String(dataUrl);
+      // only accept well-formed image data URLs; anything else (e.g. a
+      // javascript:/data:text/html URL smuggled in as "content") is refused
+      if (!/^data:image\/(png|svg\+xml|jpeg);base64,[A-Za-z0-9+/=]*$/.test(s)) {
+        return Promise.reject(new Error('writeBase64File expects an image data URL'));
+      }
       var name = String(path).split(/[\\/]/).pop();
-      download(name, dataUrl, true);
+      download(name, s, true);
       return Promise.resolve(true);
     },
 
@@ -71,7 +77,13 @@
       return Promise.resolve({ version: '1.0.0', electron: '', chrome: '', name: 'OpenStar UML' });
     },
 
-    openExternal: function (url) { global.open(url, '_blank'); return Promise.resolve(true); },
+    openExternal: function (url) {
+      // never hand non-http(s) schemes (javascript:, data:, file:) to the
+      // browser — they would execute in the victim's context
+      if (!/^https?:\/\//i.test(String(url))) return Promise.resolve(false);
+      global.open(String(url), '_blank', 'noopener,noreferrer');
+      return Promise.resolve(true);
+    },
 
     getRecentFiles: function () {
       try { return JSON.parse(localStorage.getItem('openstar-recent') || '[]'); }
@@ -85,10 +97,23 @@
     },
 
     printDiagram: function (dataUrl) {
-      var w = global.open('', '_blank');
+      // Build the print document with DOM APIs instead of document.write and
+      // set the image via .src assignment — a raw data URL interpolated into
+      // an HTML string would allow script injection (XSS).
+      var w = global.open('', '_blank', 'noopener');
       if (w) {
-        w.document.write('<html><head><title>Print Diagram</title></head><body style="margin:0;text-align:center"><img src="' + dataUrl + '" style="max-width:100%"/><script>window.onload=function(){window.print();}<\/script></body></html>');
-        w.document.close();
+        try {
+          var doc = w.document;
+          doc.title = 'Print Diagram';
+          doc.body.style.margin = '0';
+          doc.body.style.textAlign = 'center';
+          var img = doc.createElement('img');
+          img.style.maxWidth = '100%';
+          img.onload = function () { try { w.focus(); w.print(); } catch (e) { /* ignore */ } };
+          img.src = String(dataUrl); // attribute assignment, never parsed as HTML
+          doc.body.appendChild(img);
+          doc.close();
+        } catch (e) { /* popup blocked or torn down */ }
       }
       return Promise.resolve(true);
     },
